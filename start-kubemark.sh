@@ -83,7 +83,7 @@ cd $CURR_DIR
 
 MASTER_IP=##ip of the machine you want to put as kubemark master##
 PWSD=##the password of ssh to your master##
-
+KUBECTL=##the path of your kubectl##
 
 
   
@@ -208,9 +208,10 @@ contexts:
 current-context: kubemark-context
 EOF
 
+IMAGES=docker.io/wy2745/kubemark
 
 sed "s/##numreplicas##/${NUM_NODES:-10}/g" "${RESOURCE_DIRECTORY}/hollow-node_template.json" > "${RESOURCE_DIRECTORY}/hollow-node.json"
-#sed -i'' -e "s/##project##/${PROJECT}/g" "${RESOURCE_DIRECTORY}/hollow-node.json"
+sed -i'' -e "s/\"gcr.io/##project##/kubemark:latest\"/${IMAGES}/g" "${RESOURCE_DIRECTORY}/hollow-node.json"
 
 mkdir "${RESOURCE_DIRECTORY}/addons" || true
 
@@ -222,39 +223,39 @@ eventer_mem_per_node=500
 eventer_mem=$((200 * 1024 + ${eventer_mem_per_node}*${NUM_NODES:-10}))
 sed -i'' -e "s/##EVENTER_MEM##/${eventer_mem}/g" "${RESOURCE_DIRECTORY}/addons/heapster.json"
 
-#"${KUBECTL}" create -f "${RESOURCE_DIRECTORY}/kubemark-ns.json"
-#"${KUBECTL}" create -f "${KUBECONFIG_SECRET}" --namespace="kubemark"
-#"${KUBECTL}" create -f "${NODE_CONFIGMAP}" --namespace="kubemark"
-#"${KUBECTL}" create -f "${RESOURCE_DIRECTORY}/addons" --namespace="kubemark"
-#"${KUBECTL}" create -f "${RESOURCE_DIRECTORY}/hollow-node.json" --namespace="kubemark"
+"${KUBECTL}" create -f "${RESOURCE_DIRECTORY}/kubemark-ns.json"
+"${KUBECTL}" create -f "${KUBECONFIG_SECRET}" --namespace="kubemark"
+"${KUBECTL}" create -f "${NODE_CONFIGMAP}" --namespace="kubemark"
+"${KUBECTL}" create -f "${RESOURCE_DIRECTORY}/addons" --namespace="kubemark"
+"${KUBECTL}" create -f "${RESOURCE_DIRECTORY}/hollow-node.json" --namespace="kubemark"
 
 #rm "${KUBECONFIG_SECRET}"
 #rm "${NODE_CONFIGMAP}"
 
-#echo "Waiting for all HollowNodes to become Running..."
-#start=$(date +%s)
-#nodes=$("${KUBECTL}" --kubeconfig="${RESOURCE_DIRECTORY}/kubeconfig.loc" get node) || true
-#ready=$(($(echo "${nodes}" | grep -v "NotReady" | wc -l) - 1))
+echo "Waiting for all HollowNodes to become Running..."
+start=$(date +%s)
+nodes=$("${KUBECTL}" --kubeconfig="${RESOURCE_DIRECTORY}/kubeconfig.loc" get node) || true
+ready=$(($(echo "${nodes}" | grep -v "NotReady" | wc -l) - 1))
 
-# until [[ "${ready}" -ge "${NUM_NODES}" ]]; do
-#   echo -n .
-#   sleep 1
-#   now=$(date +%s)
-#   # Fail it if it already took more than 15 minutes.
-#   if [ $((now - start)) -gt 900 ]; then
-#     echo ""
-#     echo "Timeout waiting for all HollowNodes to become Running"
-#     # Try listing nodes again - if it fails it means that API server is not responding
-#     if "${KUBECTL}" --kubeconfig="${RESOURCE_DIRECTORY}/kubeconfig.loc" get node &> /dev/null; then
-#       echo "Found only ${ready} ready Nodes while waiting for ${NUM_NODES}."
-#       exit 1
-#     fi
-#     echo "Got error while trying to list Nodes. Probably API server is down."
-#     exit 1
-#   fi
-#   nodes=$("${KUBECTL}" --kubeconfig="${RESOURCE_DIRECTORY}/kubeconfig.loc" get node) || true
-#   ready=$(($(echo "${nodes}" | grep -v "NotReady" | wc -l) - 1))
-# done
-# echo ""
+ until [[ "${ready}" -ge "${NUM_NODES}" ]]; do
+   echo -n .
+   sleep 1
+   now=$(date +%s)
+   # Fail it if it already took more than 15 minutes.
+   if [ $((now - start)) -gt 900 ]; then
+     echo ""
+     echo "Timeout waiting for all HollowNodes to become Running"
+     # Try listing nodes again - if it fails it means that API server is not responding
+     if "${KUBECTL}" --kubeconfig="${RESOURCE_DIRECTORY}/kubeconfig.loc" get node &> /dev/null; then
+       echo "Found only ${ready} ready Nodes while waiting for ${NUM_NODES}."
+       exit 1
+     fi
+     echo "Got error while trying to list Nodes. Probably API server is down."
+     exit 1
+   fi
+   nodes=$("${KUBECTL}" --kubeconfig="${RESOURCE_DIRECTORY}/kubeconfig.loc" get node) || true
+   ready=$(($(echo "${nodes}" | grep -v "NotReady" | wc -l) - 1))
+ done
+ echo ""
 
 echo "Password to kubemark master: ${password}"
